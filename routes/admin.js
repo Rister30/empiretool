@@ -30,8 +30,13 @@
     <p id="msg"></p>
   </div>
   <script>
-    // Vérifier que l'utilisateur est connecté
-    if (!localStorage.getItem('token')) window.location.href = '/login.html'
+    const token = localStorage.getItem('token')
+    if (!token) window.location.href = '/login.html'
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    if (payload.role !== 'admin') {
+      alert('⛔ Accès refusé - Réservé aux administrateurs')
+      window.location.href = '/dashboard.html'
+    }
 
     async function createAccount() {
       const username = document.getElementById('username').value
