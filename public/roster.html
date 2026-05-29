@@ -10,6 +10,15 @@
     .header h1 { color: #FFE81F; }
     .back { padding: 8px 16px; background: transparent; color: #FFE81F; border: 1px solid #FFE81F; border-radius: 5px; cursor: pointer; }
     .back:hover { background: #FFE81F; color: black; }
+
+    /* Formulaire création */
+    .create-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 25px; margin-bottom: 30px; max-width: 500px; }
+    .create-box h2 { color: #FFE81F; margin-bottom: 15px; font-size: 1em; letter-spacing: 1px; }
+    .create-box input, .create-box select { width: 100%; padding: 10px; margin: 6px 0; background: #222; border: 1px solid #30363d; color: white; border-radius: 5px; box-sizing: border-box; }
+    .btn-create { width: 100%; padding: 10px; background: #FFE81F; color: black; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 8px; }
+    .btn-create:hover { background: #e6d01a; }
+
+    /* Tableau */
     table { width: 100%; border-collapse: collapse; }
     th { background: #161b22; color: #FFE81F; padding: 12px; text-align: left; border-bottom: 1px solid #30363d; }
     td { padding: 12px; border-bottom: 1px solid #30363d; }
@@ -17,13 +26,26 @@
     .role-select { background: #222; color: white; border: 1px solid #30363d; padding: 5px; border-radius: 5px; }
     .btn-delete { background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
     .btn-save { background: #FFE81F; color: black; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px; }
-    #msg { margin-bottom: 20px; color: lightgreen; }
+    #msg { margin-bottom: 20px; color: lightgreen; font-size: 0.9em; }
+    #msg.error { color: red; }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>⚙️ Gestion du Roster</h1>
     <button class="back" onclick="window.location.href='/dashboard.html'">← Retour</button>
+  </div>
+
+  <div class="create-box">
+    <h2>➕ CRÉER UN COMPTE</h2>
+    <input type="text" id="new-username" placeholder="Identifiant" />
+    <input type="password" id="new-password" placeholder="Mot de passe" />
+    <select id="new-role">
+      <option value="membre">Membre</option>
+      <option value="officier">Officier</option>
+      <option value="admin">Admin</option>
+    </select>
+    <button class="btn-create" onclick="createAccount()">Créer le compte</button>
   </div>
 
   <p id="msg"></p>
@@ -42,11 +64,40 @@
   <script>
     const token = localStorage.getItem('token')
     if (!token) window.location.href = '/login.html'
-
     const payload = JSON.parse(atob(token.split('.')[1]))
     if (payload.role !== 'admin') {
       alert('⛔ Accès refusé')
       window.location.href = '/dashboard.html'
+    }
+
+    function showMsg(text, isError = false) {
+      const msg = document.getElementById('msg')
+      msg.textContent = text
+      msg.className = isError ? 'error' : ''
+      setTimeout(() => msg.textContent = '', 3000)
+    }
+
+    async function createAccount() {
+      const username = document.getElementById('new-username').value
+      const password = document.getElementById('new-password').value
+      const role = document.getElementById('new-role').value
+
+      if (!username || !password) return showMsg('❌ Remplis tous les champs !', true)
+
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ username, password, role })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showMsg(`✅ Compte "${username}" créé !`)
+        document.getElementById('new-username').value = ''
+        document.getElementById('new-password').value = ''
+        loadUsers()
+      } else {
+        showMsg('❌ ' + data.message, true)
+      }
     }
 
     async function loadUsers() {
@@ -84,8 +135,7 @@
         body: JSON.stringify({ role })
       })
       const data = await res.json()
-      document.getElementById('msg').textContent = '✅ ' + data.message
-      setTimeout(() => document.getElementById('msg').textContent = '', 3000)
+      showMsg('✅ ' + data.message)
     }
 
     async function deleteUser(id, username) {
@@ -95,7 +145,7 @@
         headers: { 'Authorization': 'Bearer ' + token }
       })
       const data = await res.json()
-      document.getElementById('msg').textContent = '✅ ' + data.message
+      showMsg('✅ ' + data.message)
       loadUsers()
     }
 
