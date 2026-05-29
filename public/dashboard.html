@@ -4,20 +4,82 @@
   <meta charset="UTF-8">
   <title>Empire Tool - Dashboard</title>
   <style>
-    body { background: #0a0a0a; color: #FFE81F; font-family: Arial; text-align: center; padding: 40px; }
-    h1 { font-size: 2em; }
-    .btn { margin: 10px; padding: 15px 25px; background: #111; color: #FFE81F; border: 1px solid #FFE81F; border-radius: 8px; cursor: pointer; font-size: 1em; }
-    .btn:hover { background: #FFE81F; color: black; }
-    .logout { margin-top: 30px; padding: 10px 20px; background: #FFE81F; color: black; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1117; color: #ffffff; font-family: Arial, sans-serif; padding: 40px; }
+    h2 { color: #aaa; font-size: 0.85em; letter-spacing: 2px; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 700px; margin: 0 auto; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 30px 20px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+    .card:hover { border-color: #FFE81F; background: #1c2128; }
+    .card .icon { font-size: 2em; margin-bottom: 12px; }
+    .card .title { font-size: 0.85em; font-weight: bold; letter-spacing: 1.5px; color: #ffffff; }
+    .card .desc { font-size: 0.75em; color: #8b949e; margin-top: 5px; }
+    .header { display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto 30px auto; }
+    .header h1 { font-size: 1.5em; color: #FFE81F; }
+    .logout { padding: 8px 16px; background: transparent; color: #FFE81F; border: 1px solid #FFE81F; border-radius: 5px; cursor: pointer; font-size: 0.85em; }
+    .logout:hover { background: #FFE81F; color: black; }
   </style>
 </head>
 <body>
-  <h1>⚔️ Empire Tool</h1>
-  <p>Bienvenue sur le dashboard !</p>
-  <br>
-  <button class="btn" onclick="window.location.href='/admin.html'">⚙️ Créer un compte</button>
-  <br><br>
-  <button class="logout" onclick="logout()">Se déconnecter</button>
+  <div class="header">
+    <h1>⚔️ Empire Tool</h1>
+    <button class="logout" onclick="logout()">Se déconnecter</button>
+  </div>
+
+  <h2 style="max-width:700px;margin:0 auto 15px auto;">OUTILS</h2>
+
+  <div class="grid">
+    <div class="card">
+      <div class="icon">👮‍♂️</div>
+      <div class="title">AIDE SASP</div>
+      <div class="desc">Générateur DA & RA</div>
+    </div>
+    <div class="card">
+      <div class="icon">🧬</div>
+      <div class="title">LABORATOIRE</div>
+      <div class="desc">Accès Division Scientifique</div>
+    </div>
+    <div class="card">
+      <div class="icon">📸</div>
+      <div class="title">HÉBERGEMENT SASP</div>
+      <div class="desc">Upload Images/Vidéos</div>
+    </div>
+    <div class="card">
+      <div class="icon">⚙️</div>
+      <div class="title">ADMINISTRATION</div>
+      <div class="desc">Gestion du Roster</div>
+    </div>
+    <div class="card">
+      <div class="icon">🎓</div>
+      <div class="title">TRAINING DIVISION</div>
+      <div class="desc">Recrutement & Epreuves</div>
+    </div>
+    <div class="card">
+      <div class="icon">📋</div>
+      <div class="title">SUIVI CADET</div>
+      <div class="desc">Fiches de suivi & notations</div>
+    </div>
+    <div class="card">
+      <div class="icon">⚖️</div>
+      <div class="title">PLAINTES CID</div>
+      <div class="desc">Depot & consultation de plaintes</div>
+    </div>
+    <div class="card">
+      <div class="icon">🔒</div>
+      <div class="title">SAISIES</div>
+      <div class="desc">Armes, Drogues & Objets</div>
+    </div>
+    <div class="card">
+      <div class="icon">📡</div>
+      <div class="title">DISPATCH</div>
+      <div class="desc">Tableau de dispatching</div>
+    </div>
+    <div class="card">
+      <div class="icon">🕐</div>
+      <div class="title">HEURES & SALAIRES</div>
+      <div class="desc">Gestion des heures de service</div>
+    </div>
+  </div>
+
   <script>
     if (!localStorage.getItem('token')) window.location.href = '/login.html'
     function logout() {
