@@ -77,7 +77,6 @@
       box-shadow: 0 0 16px rgba(200, 0, 0, 0.4);
     }
 
-    /* Create box */
     .create-box {
       background: rgba(10, 8, 8, 0.9);
       border: 1px solid #2a0a0a;
@@ -161,7 +160,46 @@
       box-shadow: 0 0 16px rgba(200, 0, 0, 0.4);
     }
 
-    /* Message */
+    /* Barre de recherche */
+    .search-bar {
+      position: relative;
+      z-index: 1;
+      margin-bottom: 16px;
+    }
+    .search-bar input {
+      width: 100%;
+      padding: 10px 14px 10px 36px;
+      background: rgba(10, 8, 8, 0.9);
+      border: 1px solid #2a0a0a;
+      border-radius: 2px;
+      color: #e0c0c0;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85em;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .search-bar input:focus {
+      border-color: #cc0000;
+      box-shadow: 0 0 0 2px rgba(200, 0, 0, 0.1);
+    }
+    .search-bar input::placeholder { color: #2e1515; }
+    .search-bar .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #3a1010;
+      font-size: 0.85em;
+      pointer-events: none;
+    }
+    .search-count {
+      font-size: 0.7em;
+      color: #3a1010;
+      letter-spacing: 1px;
+      margin-top: 6px;
+      text-transform: uppercase;
+    }
+
     #msg {
       margin-bottom: 20px;
       font-size: 0.82em;
@@ -172,7 +210,6 @@
     }
     #msg.error { color: #cc0000; }
 
-    /* Table */
     table {
       width: 100%;
       border-collapse: collapse;
@@ -197,6 +234,15 @@
       color: #e0c0c0;
     }
     tr:hover td { background: rgba(20, 5, 5, 0.6); }
+    tr.hidden { display: none; }
+
+    /* Highlight recherche */
+    .highlight {
+      background: rgba(200, 0, 0, 0.25);
+      color: #ff6666;
+      border-radius: 2px;
+      padding: 0 2px;
+    }
 
     .role-select {
       background: #0a0505;
@@ -240,6 +286,16 @@
       transition: background 0.2s, color 0.2s;
     }
     .btn-delete:hover { background: #7a1010; color: #fff; }
+
+    .no-results {
+      text-align: center;
+      padding: 24px;
+      color: #3a1010;
+      font-size: 0.82em;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -262,6 +318,12 @@
 
   <p id="msg"></p>
 
+  <div class="search-bar">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="Rechercher un compte..." oninput="filterUsers()" />
+  </div>
+  <div class="search-count" id="search-count"></div>
+
   <table>
     <thead>
       <tr>
@@ -272,6 +334,7 @@
     </thead>
     <tbody id="userList"></tbody>
   </table>
+  <div class="no-results" id="no-results">Aucun compte trouvé</div>
 
   <script>
     const token = localStorage.getItem('token')
@@ -282,11 +345,48 @@
       window.location.href = '/dashboard.html'
     }
 
+    let allUsers = []
+
     function showMsg(text, isError = false) {
       const msg = document.getElementById('msg')
       msg.textContent = text
       msg.className = isError ? 'error' : ''
       setTimeout(() => msg.textContent = '', 3000)
+    }
+
+    function filterUsers() {
+      const query = document.getElementById('search-input').value.toLowerCase().trim()
+      const rows = document.querySelectorAll('#userList tr')
+      let visible = 0
+
+      rows.forEach(row => {
+        const username = row.dataset.username || ''
+        const match = username.toLowerCase().includes(query)
+        row.classList.toggle('hidden', !match)
+
+        // Highlight
+        if (query && match) {
+          const cell = row.querySelector('.username-cell')
+          const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          cell.innerHTML = username.replace(new RegExp(escaped, 'gi'), m => `<span class="highlight">${m}</span>`)
+        } else {
+          const cell = row.querySelector('.username-cell')
+          if (cell) cell.textContent = username
+        }
+
+        if (match) visible++
+      })
+
+      const count = document.getElementById('search-count')
+      const noResults = document.getElementById('no-results')
+
+      if (query) {
+        count.textContent = `${visible} résultat${visible !== 1 ? 's' : ''} pour "${query}"`
+        noResults.style.display = visible === 0 ? 'block' : 'none'
+      } else {
+        count.textContent = `${rows.length} compte${rows.length !== 1 ? 's' : ''} au total`
+        noResults.style.display = 'none'
+      }
     }
 
     async function createAccount() {
@@ -315,13 +415,14 @@
       const res = await fetch('/api/admin/users', {
         headers: { 'Authorization': 'Bearer ' + token }
       })
-      const data = await res.json()
+      allUsers = await res.json()
       const tbody = document.getElementById('userList')
       tbody.innerHTML = ''
-      data.forEach(user => {
+
+      allUsers.forEach(user => {
         tbody.innerHTML += `
-          <tr>
-            <td>${user.username}</td>
+          <tr data-username="${user.username}">
+            <td class="username-cell">${user.username}</td>
             <td>
               <select class="role-select" id="role-${user.id}">
                 <option value="membre" ${user.role === 'membre' ? 'selected' : ''}>Membre</option>
@@ -336,6 +437,8 @@
           </tr>
         `
       })
+
+      filterUsers()
     }
 
     async function updateUser(id) {
