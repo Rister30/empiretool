@@ -31,6 +31,7 @@
   </div>
   <script>
     // Vérifier que l'utilisateur est connecté
+    if (!localStorage.getItem('token')) window.location.href = '/login.html'
 
     async function createAccount() {
       const username = document.getElementById('username').value
