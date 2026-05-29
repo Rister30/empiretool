@@ -3,20 +3,144 @@
 <head>
   <meta charset="UTF-8">
   <title>Empire Tool - Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0d1117; color: #ffffff; font-family: Arial, sans-serif; padding: 40px; }
-    h2 { color: #aaa; font-size: 0.85em; letter-spacing: 2px; margin-bottom: 20px; }
-    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 700px; margin: 0 auto; }
-    .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 30px 20px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
-    .card:hover { border-color: #FFE81F; background: #1c2128; }
-    .card .icon { font-size: 2em; margin-bottom: 12px; }
-    .card .title { font-size: 0.85em; font-weight: bold; letter-spacing: 1.5px; color: #ffffff; }
-    .card .desc { font-size: 0.75em; color: #8b949e; margin-top: 5px; }
-    .header { display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto 30px auto; }
-    .header h1 { font-size: 1.5em; color: #FFE81F; }
-    .logout { padding: 8px 16px; background: transparent; color: #FFE81F; border: 1px solid #FFE81F; border-radius: 5px; cursor: pointer; font-size: 0.85em; }
-    .logout:hover { background: #FFE81F; color: black; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #050508;
+      color: #ffffff;
+      font-family: 'Inter', sans-serif;
+      padding: 40px;
+      min-height: 100vh;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(180, 0, 0, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(180, 0, 0, 0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: 40%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 800px; height: 800px;
+      background: radial-gradient(ellipse, rgba(150, 0, 0, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 700px;
+      margin: 0 auto 30px auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    .header h1 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1.7em;
+      font-weight: 700;
+      color: #cc0000;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      text-shadow: 0 0 20px rgba(200, 0, 0, 0.5);
+    }
+
+    .logout {
+      padding: 8px 18px;
+      background: transparent;
+      color: #cc0000;
+      border: 1px solid #cc0000;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: 0.78em;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+    .logout:hover {
+      background: #cc0000;
+      color: #000;
+      box-shadow: 0 0 16px rgba(200, 0, 0, 0.4);
+    }
+
+    .section-label {
+      max-width: 700px;
+      margin: 0 auto 15px auto;
+      font-size: 0.7em;
+      font-weight: 600;
+      letter-spacing: 3px;
+      color: #3a1010;
+      text-transform: uppercase;
+      position: relative;
+      z-index: 1;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      max-width: 700px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    .card {
+      background: rgba(10, 8, 8, 0.9);
+      border: 1px solid #2a0a0a;
+      border-top: 1px solid #3a1010;
+      border-radius: 4px;
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      position: relative;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: -1px; left: -1px;
+      width: 8px; height: 8px;
+      border-top: 1px solid #cc0000;
+      border-left: 1px solid #cc0000;
+    }
+    .card:hover {
+      border-color: #cc0000;
+      background: rgba(20, 5, 5, 0.95);
+      box-shadow: 0 0 20px rgba(180, 0, 0, 0.15);
+    }
+
+    .card .icon { font-size: 1.8em; margin-bottom: 10px; }
+
+    .card .title {
+      font-size: 0.78em;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: #e0c0c0;
+      text-transform: uppercase;
+    }
+
+    .card .desc {
+      font-size: 0.72em;
+      color: #4a2020;
+      margin-top: 5px;
+      font-weight: 400;
+    }
   </style>
 </head>
 <body>
@@ -25,7 +149,7 @@
     <button class="logout" onclick="logout()">Se déconnecter</button>
   </div>
 
-  <h2 style="max-width:700px;margin:0 auto 15px auto;">OUTILS</h2>
+  <div class="section-label">Outils</div>
 
   <div class="grid">
     <div class="card">
@@ -44,9 +168,9 @@
       <div class="desc">Upload Images/Vidéos</div>
     </div>
     <div class="card" onclick="goAdmin()">
-        <div class="icon">⚙️</div>
-        <div class="title">ADMINISTRATION</div>
-        <div class="desc">Gestion du Roster</div>
+      <div class="icon">⚙️</div>
+      <div class="title">ADMINISTRATION</div>
+      <div class="desc">Gestion du Roster</div>
     </div>
     <div class="card">
       <div class="icon">🎓</div>
@@ -82,7 +206,7 @@
 
   <script>
     if (!localStorage.getItem('token')) window.location.href = '/login.html'
-    
+
     function logout() {
       localStorage.removeItem('token')
       window.location.href = '/login.html'
@@ -91,10 +215,9 @@
     function goAdmin() {
       const token = localStorage.getItem('token')
       if (!token) return window.location.href = '/login.html'
-      
       const payload = JSON.parse(atob(token.split('.')[1]))
       if (payload.role !== 'admin') {
-        alert('⛔ Accès refusé - Réservé aux administrateurs')
+        alert('⛔ Accès refusé')
         return
       }
       window.location.href = '/roster.html'
