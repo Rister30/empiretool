@@ -43,10 +43,10 @@
       <div class="title">HÉBERGEMENT SASP</div>
       <div class="desc">Upload Images/Vidéos</div>
     </div>
-    <div class="card">
-      <div class="icon">⚙️</div>
-      <div class="title">ADMINISTRATION</div>
-      <div class="desc">Gestion du Roster</div>
+    <div class="card" onclick="goAdmin()">
+        <div class="icon">⚙️</div>
+        <div class="title">ADMINISTRATION</div>
+        <div class="desc">Gestion du Roster</div>
     </div>
     <div class="card">
       <div class="icon">🎓</div>
@@ -82,9 +82,22 @@
 
   <script>
     if (!localStorage.getItem('token')) window.location.href = '/login.html'
+    
     function logout() {
       localStorage.removeItem('token')
       window.location.href = '/login.html'
+    }
+
+    function goAdmin() {
+      const token = localStorage.getItem('token')
+      if (!token) return window.location.href = '/login.html'
+      
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      if (payload.role !== 'admin') {
+        alert('⛔ Accès refusé - Réservé aux administrateurs')
+        return
+      }
+      window.location.href = '/roster.html'
     }
   </script>
 </body>

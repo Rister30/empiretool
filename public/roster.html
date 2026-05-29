@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Empire Tool - Roster</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1117; color: #fff; font-family: Arial; padding: 40px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+    .header h1 { color: #FFE81F; }
+    .back { padding: 8px 16px; background: transparent; color: #FFE81F; border: 1px solid #FFE81F; border-radius: 5px; cursor: pointer; }
+    .back:hover { background: #FFE81F; color: black; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #161b22; color: #FFE81F; padding: 12px; text-align: left; border-bottom: 1px solid #30363d; }
+    td { padding: 12px; border-bottom: 1px solid #30363d; }
+    tr:hover { background: #161b22; }
+    .role-select { background: #222; color: white; border: 1px solid #30363d; padding: 5px; border-radius: 5px; }
+    .btn-delete { background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+    .btn-save { background: #FFE81F; color: black; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px; }
+    #msg { margin-bottom: 20px; color: lightgreen; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>⚙️ Gestion du Roster</h1>
+    <button class="back" onclick="window.location.href='/dashboard.html'">← Retour</button>
+  </div>
+
+  <p id="msg"></p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Identifiant</th>
+        <th>Rôle</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="userList"></tbody>
+  </table>
+
+  <script>
+    const token = localStorage.getItem('token')
+    if (!token) window.location.href = '/login.html'
+
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    if (payload.role !== 'admin') {
+      alert('⛔ Accès refusé')
+      window.location.href = '/dashboard.html'
+    }
+
+    async function loadUsers() {
+      const res = await fetch('/api/admin/users', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+      const data = await res.json()
+      const tbody = document.getElementById('userList')
+      tbody.innerHTML = ''
+      data.forEach(user => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${user.username}</td>
+            <td>
+              <select class="role-select" id="role-${user.id}">
+                <option value="membre" ${user.role === 'membre' ? 'selected' : ''}>Membre</option>
+                <option value="officier" ${user.role === 'officier' ? 'selected' : ''}>Officier</option>
+                <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+              </select>
+            </td>
+            <td>
+              <button class="btn-save" onclick="updateUser(${user.id})">💾 Sauvegarder</button>
+              <button class="btn-delete" onclick="deleteUser(${user.id}, '${user.username}')">🗑️ Supprimer</button>
+            </td>
+          </tr>
+        `
+      })
+    }
+
+    async function updateUser(id) {
+      const role = document.getElementById('role-' + id).value
+      const res = await fetch('/api/admin/users/' + id, {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role })
+      })
+      const data = await res.json()
+      document.getElementById('msg').textContent = '✅ ' + data.message
+      setTimeout(() => document.getElementById('msg').textContent = '', 3000)
+    }
+
+    async function deleteUser(id, username) {
+      if (!confirm(`Supprimer le compte "${username}" ?`)) return
+      const res = await fetch('/api/admin/users/' + id, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+      const data = await res.json()
+      document.getElementById('msg').textContent = '✅ ' + data.message
+      loadUsers()
+    }
+
+    loadUsers()
+  </script>
+</body>
+</html>
