@@ -6,12 +6,17 @@
   <style>
     body { background: #0a0a0a; color: #FFE81F; font-family: Arial; text-align: center; padding: 40px; }
     h1 { font-size: 2em; }
-    .logout { margin-top: 20px; padding: 10px 20px; background: #FFE81F; color: black; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    .btn { margin: 10px; padding: 15px 25px; background: #111; color: #FFE81F; border: 1px solid #FFE81F; border-radius: 8px; cursor: pointer; font-size: 1em; }
+    .btn:hover { background: #FFE81F; color: black; }
+    .logout { margin-top: 30px; padding: 10px 20px; background: #FFE81F; color: black; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
   </style>
 </head>
 <body>
   <h1>⚔️ Empire Tool</h1>
-  <p>Dashboard en construction...</p>
+  <p>Bienvenue sur le dashboard !</p>
+  <br>
+  <button class="btn" onclick="window.location.href='/admin.html'">⚙️ Créer un compte</button>
+  <br><br>
   <button class="logout" onclick="logout()">Se déconnecter</button>
   <script>
     if (!localStorage.getItem('token')) window.location.href = '/login.html'
