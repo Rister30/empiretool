@@ -1,74 +1,40 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <title>Empire Tool - Admin</title>
-  <style>
-    body { background: #0a0a0a; color: #FFE81F; font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-    .box { background: #111; padding: 40px; border-radius: 10px; border: 1px solid #FFE81F; width: 350px; }
-    h2 { text-align: center; margin-bottom: 20px; }
-    input, select { width: 100%; padding: 10px; margin: 8px 0; background: #222; border: 1px solid #FFE81F; color: white; border-radius: 5px; box-sizing: border-box; }
-    button { width: 100%; padding: 10px; background: #FFE81F; color: black; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-    #msg { text-align: center; margin-top: 10px; }
-    .success { color: lightgreen; }
-    .error { color: red; }
-    .back { background: #222; color: #FFE81F; border: 1px solid #FFE81F; margin-top: 8px; }
-  </style>
-</head>
-<body>
-  <div class="box">
-    <h2>⚙️ Créer un compte</h2>
-    <input type="text" id="username" placeholder="Identifiant" />
-    <input type="password" id="password" placeholder="Mot de passe" />
-    <select id="role">
-      <option value="membre">Membre</option>
-      <option value="officier">Officier</option>
-      <option value="admin">Admin</option>
-    </select>
-    <button onclick="createAccount()">Créer le compte</button>
-    <button class="back" onclick="window.location.href='/dashboard.html'">← Retour au dashboard</button>
-    <p id="msg"></p>
-  </div>
-  <script>
-    const token = localStorage.getItem('token')
-    if (!token) window.location.href = '/login.html'
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    if (payload.role !== 'admin') {
-      alert('⛔ Accès refusé - Réservé aux administrateurs')
-      window.location.href = '/dashboard.html'
-    }
+const express = require('express')
+const router = express.Router()
+const jwt = require('jsonwebtoken')
+const { Pool } = require('pg')
 
-    async function createAccount() {
-      const username = document.getElementById('username').value
-      const password = document.getElementById('password').value
-      const role = document.getElementById('role').value
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+})
 
-      if (!username || !password) {
-        document.getElementById('msg').textContent = 'Remplis tous les champs !'
-        document.getElementById('msg').className = 'error'
-        return
-      }
+function authAdmin(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1]
+  if (!token) return res.status(401).json({ message: 'Non autorisé' })
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET)
+    if (payload.role !== 'admin') return res.status(403).json({ message: 'Accès refusé' })
+    req.user = payload
+    next()
+  } catch {
+    res.status(401).json({ message: 'Token invalide' })
+  }
+}
 
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + localStorage.getItem('token')
-        },
-        body: JSON.stringify({ username, password, role })
-      })
-      const data = await res.json()
-      const msg = document.getElementById('msg')
-      if (res.ok) {
-        msg.textContent = `✅ Compte "${username}" créé avec le rôle "${role}" !`
-        msg.className = 'success'
-        document.getElementById('username').value = ''
-        document.getElementById('password').value = ''
-      } else {
-        msg.textContent = '❌ ' + data.message
-        msg.className = 'error'
-      }
-    }
-  </script>
-</body>
-</html>
+router.get('/users', authAdmin, async (req, res) => {
+  const result = await pool.query('SELECT id, username, role FROM users ORDER BY id')
+  res.json(result.rows)
+})
+
+router.put('/users/:id', authAdmin, async (req, res) => {
+  const { role } = req.body
+  await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, req.params.id])
+  res.json({ message: 'Rôle mis à jour !' })
+})
+
+router.delete('/users/:id', authAdmin, async (req, res) => {
+  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id])
+  res.json({ message: 'Compte supprimé !' })
+})
+
+module.exports = router
