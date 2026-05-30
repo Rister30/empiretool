@@ -8,6 +8,19 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 })
 
+// Middleware : membre connecté (n'importe quel rôle valide)
+function authMembre(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1]
+  if (!token) return res.status(401).json({ message: 'Non autorisé' })
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET)
+    next()
+  } catch {
+    res.status(401).json({ message: 'Token invalide' })
+  }
+}
+
+// Middleware : admin uniquement
 function authAdmin(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1]
   if (!token) return res.status(401).json({ message: 'Non autorisé' })
@@ -21,11 +34,13 @@ function authAdmin(req, res, next) {
   }
 }
 
-router.get('/users', authAdmin, async (req, res) => {
+// ✅ Accessible à tous les membres — utilisé par dispatch.html pour la liste des joueurs
+router.get('/users', authMembre, async (req, res) => {
   const result = await pool.query('SELECT id, username, role FROM users ORDER BY id')
   res.json(result.rows)
 })
 
+// Les routes de modification restent admin-only
 router.put('/users/:id', authAdmin, async (req, res) => {
   const { role } = req.body
   await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, req.params.id])

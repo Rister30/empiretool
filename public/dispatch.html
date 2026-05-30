@@ -95,7 +95,7 @@ body::after {
   border:1px solid #3a2200; border-radius:2px; cursor:pointer;
   font-size:.75rem; font-family:'Inter',sans-serif; font-weight:600;
   letter-spacing:1px; text-transform:uppercase;
-  transition:background .2s; position:relative;
+  transition:background .2s; position:relative; display:none;
 }
 .btn-statut::before {
   content:''; position:absolute; top:-1px; left:-1px;
@@ -103,6 +103,7 @@ body::after {
   border-top:1px solid #ffb020; border-left:1px solid #ffb020;
 }
 .btn-statut:hover { background:#341e00; }
+.btn-statut.visible { display:inline-block; }
 
 .user-label { font-size:.72rem; color:#4a3030; letter-spacing:1px; text-transform:uppercase; }
 
@@ -611,252 +612,262 @@ body::after {
 
 <script>
 
-// Vérification du token
-const token = localStorage.getItem('token');
-if (!token) window.location.href = '/login.html';
+const token = localStorage.getItem('token')
+if (!token) window.location.href = '/login.html'
 
-let myUsername = null, myRole = null, myId = null;
+let myUsername = null, myRole = null, myId = null
 try {
-  const p = JSON.parse(atob(token.split('.')[1]));
-  myUsername = p.username || p.sub || '—';
-  myRole = p.role || 'membre';
-  myId = p.id || p.sub;
-} catch(e) {
-  window.location.href = '/login.html';
-}
+  const p = JSON.parse(atob(token.split('.')[1]))
+  myUsername = p.username || p.sub || '—'
+  myRole     = p.role || 'membre'
+  myId       = p.id || p.sub
+} catch(e) { window.location.href = '/login.html' }
 
-document.getElementById('user-label').textContent = myUsername;
+document.getElementById('user-label').textContent = myUsername
 
 /* ── State ── */
-let allUsers = [];
-let onlineSet = new Set();
-let startTimes = {};
-let playerStatus = {}; // { id: { status, with:[], action } }
-let currentFilter = 'all';
-let selectedStatus = 'dispo';
-let selectedWith = new Set();
+let allUsers      = []
+let onlineSet     = new Set()
+let startTimes    = {}
+let playerStatus  = {}
+let currentFilter = 'all'
+let selectedStatus = 'dispo'
+let selectedWith   = new Set()
 
-/* ── Persistance locale pour l'état "en ligne" ── */
-function saveOnlineState(isOnline) {
-  localStorage.setItem(`dispatch_online_${myId}`, isOnline ? 'true' : 'false');
+/* ── Storage persistence ── */
+const STORAGE_KEY = 'dispatch_state'
+
+async function saveState() {
+  try {
+    const data = {
+      onlineIds:    [...onlineSet],
+      startTimes:   startTimes,
+      playerStatus: playerStatus,
+      savedAt:      Date.now()
+    }
+    await window.storage.set(STORAGE_KEY, JSON.stringify(data), true)
+  } catch(e) { /* storage indisponible, dégradé */ }
 }
 
-function loadOnlineState() {
-  return localStorage.getItem(`dispatch_online_${myId}`) === 'true';
-}
-
-/* ── Persistance locale pour le statut personnalisé ── */
-function saveCustomStatus(status, withIds, action) {
-  localStorage.setItem(`dispatch_status_${myId}`, JSON.stringify({ status, with: [...withIds], action }));
-}
-
-function loadCustomStatus() {
-  const saved = localStorage.getItem(`dispatch_status_${myId}`);
-  return saved ? JSON.parse(saved) : { status: 'dispo', with: [], action: '' };
+async function loadState() {
+  try {
+    const result = await window.storage.get(STORAGE_KEY, true)
+    if (result && result.value) {
+      const data = JSON.parse(result.value)
+      onlineSet    = new Set(data.onlineIds || [])
+      startTimes   = data.startTimes   || {}
+      playerStatus = data.playerStatus || {}
+    }
+  } catch(e) { /* pas de state sauvegardé */ }
 }
 
 /* ── Toast ── */
 function toast(msg, color) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.color = color || '#cc0000';
-  t.style.borderColor = color || '#cc0000';
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+  const t = document.getElementById('toast')
+  t.textContent = msg
+  t.style.color = color || '#cc0000'
+  t.style.borderColor = color || '#cc0000'
+  t.classList.add('show')
+  setTimeout(() => t.classList.remove('show'), 2500)
 }
 
 /* ── Service ── */
 async function toggleService() {
-  const isOnline = onlineSet.has(myId);
-  const newState = !isOnline;
+  const isOnline = onlineSet.has(myId)
 
-  // Sauvegarder l'état localement
-  saveOnlineState(newState);
+  // Tentative API (optionnelle, ne bloque pas)
+  try {
+    await fetch('/api/dispatch/service', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({ online:!isOnline })
+    })
+  } catch(e) {}
 
-  if (newState) {
-    onlineSet.add(myId);
-    startTimes[myId] = Date.now();
-    const savedStatus = loadCustomStatus();
-    playerStatus[myId] = {
-      status: savedStatus.status || 'dispo',
-      with: savedStatus.with || [],
-      action: savedStatus.action || ''
-    };
-    document.getElementById('btn-statut').classList.add('visible');
-    toast('En service — configure ton statut', '#3ddc84');
-    setTimeout(openStatutModal, 400);
+  if (isOnline) {
+    onlineSet.delete(myId)
+    delete startTimes[myId]
+    delete playerStatus[myId]
+    document.getElementById('btn-statut').classList.remove('visible')
+    toast('Hors service')
   } else {
-    onlineSet.delete(myId);
-    delete startTimes[myId];
-    delete playerStatus[myId];
-    document.getElementById('btn-statut').classList.remove('visible');
-    toast('Hors service');
+    onlineSet.add(myId)
+    startTimes[myId] = Date.now()
+    playerStatus[myId] = { status:'dispo', with:[], action:'' }
+    document.getElementById('btn-statut').classList.add('visible')
+    toast('En service — configure ton statut', '#3ddc84')
+    setTimeout(openStatutModal, 400)
   }
 
-  renderServiceBtn();
-  renderRoster();
-  renderColumns();
-  updateCounts();
-}
-
-/* ── Charger l'état au démarrage ── */
-function loadInitialState() {
-  const wasOnline = loadOnlineState();
-  if (wasOnline) {
-    onlineSet.add(myId);
-    startTimes[myId] = Date.now();
-    const savedStatus = loadCustomStatus();
-    playerStatus[myId] = savedStatus;
-    document.getElementById('btn-statut').classList.add('visible');
-  }
+  await saveState()
+  renderServiceBtn()
+  renderRoster()
+  renderColumns()
+  updateCounts()
 }
 
 function renderServiceBtn() {
-  const btn = document.getElementById('btn-service');
+  const btn = document.getElementById('btn-service')
   if (onlineSet.has(myId)) {
-    btn.className = 'btn-service';
-    btn.textContent = '● Hors service';
+    btn.className = 'btn-service'
+    btn.textContent = '● Hors service'
   } else {
-    btn.className = 'btn-service off';
-    btn.textContent = '● Se mettre en service';
+    btn.className = 'btn-service off'
+    btn.textContent = '● Se mettre en service'
   }
 }
 
 /* ── Modal statut ── */
 function openStatutModal() {
-  if (!onlineSet.has(myId)) return;
+  if (!onlineSet.has(myId)) return
 
-  // Charger l'état sauvegardé localement
-  const savedStatus = loadCustomStatus();
-  selectedStatus = savedStatus.status || 'dispo';
-  selectedWith = new Set(savedStatus.with || []);
-  document.getElementById('action-input').value = savedStatus.action || '';
+  const cur = playerStatus[myId] || {}
+  selectedStatus = cur.status || 'dispo'
+  selectedWith   = new Set(cur.with || [])
+  document.getElementById('action-input').value = cur.action || ''
 
-  // Mettre à jour l'interface du modal
   document.querySelectorAll('.status-opt').forEach(el => {
-    el.classList.toggle('selected', el.dataset.status === selectedStatus);
-  });
+    el.classList.toggle('selected', el.dataset.status === selectedStatus)
+  })
 
-  // Liste "avec qui" = autres joueurs en ligne
-  const others = allUsers.filter(u => onlineSet.has(u.id) && u.id !== myId);
-  const wl = document.getElementById('with-list');
+  const others = allUsers.filter(u => onlineSet.has(u.id) && u.id !== myId)
+  const wl = document.getElementById('with-list')
   if (!others.length) {
-    wl.innerHTML = '<div style="font-size:.72rem;color:#2a1010;padding:4px 2px;">Aucun autre membre en service</div>';
+    wl.innerHTML = '<div style="font-size:.72rem;color:#2a1010;padding:4px 2px;">Aucun autre membre en service</div>'
   } else {
     wl.innerHTML = others.map(u => `
-      <div class="with-opt${selectedWith.has(u.id) ? ' selected' : ''}" onclick="toggleWith(${u.id}, this)">
-        <div class="with-check">${selectedWith.has(u.id) ? '✓' : ''}</div>
+      <div class="with-opt${selectedWith.has(u.id)?' selected':''}" onclick="toggleWith(${JSON.stringify(u.id)},this)">
+        <div class="with-check">${selectedWith.has(u.id)?'✓':''}</div>
         <span class="with-name">${u.username}</span>
-        <span class="with-role">${u.role || ''}</span>
+        <span class="with-role">${u.role||''}</span>
       </div>
-    `).join('');
+    `).join('')
   }
 
-  document.getElementById('modal-overlay').classList.add('open');
+  document.getElementById('modal-overlay').classList.add('open')
 }
 
 function closeStatutModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
+  document.getElementById('modal-overlay').classList.remove('open')
 }
 
 function closeOnOverlay(e) {
-  if (e.target === document.getElementById('modal-overlay')) closeStatutModal();
+  if (e.target === document.getElementById('modal-overlay')) closeStatutModal()
 }
 
 function selectStatus(el) {
-  selectedStatus = el.dataset.status;
-  document.querySelectorAll('.status-opt').forEach(o => o.classList.remove('selected'));
-  el.classList.add('selected');
+  selectedStatus = el.dataset.status
+  document.querySelectorAll('.status-opt').forEach(o => o.classList.remove('selected'))
+  el.classList.add('selected')
 }
 
 function toggleWith(id, el) {
   if (selectedWith.has(id)) {
-    selectedWith.delete(id);
-    el.classList.remove('selected');
-    el.querySelector('.with-check').textContent = '';
+    selectedWith.delete(id)
+    el.classList.remove('selected')
+    el.querySelector('.with-check').textContent = ''
   } else {
-    selectedWith.add(id);
-    el.classList.add('selected');
-    el.querySelector('.with-check').textContent = '✓';
+    selectedWith.add(id)
+    el.classList.add('selected')
+    el.querySelector('.with-check').textContent = '✓'
   }
 }
 
-function confirmStatut() {
-  const action = document.getElementById('action-input').value.trim();
+async function confirmStatut() {
   playerStatus[myId] = {
     status: selectedStatus,
-    with: [...selectedWith],
-    action: action
-  };
-
-  // Sauvegarder localement
-  saveCustomStatus(selectedStatus, selectedWith, action);
-
-  closeStatutModal();
-  renderRoster();
-  renderColumns();
-  updateCounts();
-  toast('Statut mis à jour', '#ffb020');
+    with:   [...selectedWith],
+    action: document.getElementById('action-input').value.trim()
+  }
+  await saveState()
+  closeStatutModal()
+  renderRoster()
+  renderColumns()
+  updateCounts()
+  toast('Statut mis à jour', '#ffb020')
 }
 
 /* ── Helpers ── */
 function elapsed(id) {
-  if (!startTimes[id]) return '';
-  const s = Math.floor((Date.now() - startTimes[id]) / 1000);
-  const m = Math.floor(s / 60), h = Math.floor(m / 60);
-  if (h > 0) return h + 'h' + String(m % 60).padStart(2, '0');
-  if (m > 0) return m + 'min';
-  return '< 1min';
+  if (!startTimes[id]) return ''
+  const s = Math.floor((Date.now() - startTimes[id]) / 1000)
+  const m = Math.floor(s/60), h = Math.floor(m/60)
+  if (h>0) return h+'h'+String(m%60).padStart(2,'0')
+  if (m>0) return m+'min'
+  return '< 1min'
 }
 
 const STATUS_META = {
-  dispo: { label: 'Disponible', dot: 'green', badge: 'g' },
-  interv: { label: 'Intervention', dot: 'orange', badge: 'o' },
-  occupe: { label: 'Occupé', dot: 'red', badge: 'r' },
-  op: { label: 'Opération', dot: 'blue', badge: 'o' },
-  pause: { label: 'En pause', dot: 'gray', badge: 'r' },
-  form: { label: 'Formation', dot: 'blue', badge: 'o' },
-};
+  dispo:  { label:'Disponible',   dot:'green',  badge:'g',  colClass:'' },
+  interv: { label:'Intervention', dot:'orange', badge:'o',  colClass:'orange' },
+  occupe: { label:'Occupé',       dot:'red',    badge:'r',  colClass:'red' },
+  op:     { label:'Opération',    dot:'blue',   badge:'o',  colClass:'orange' },
+  pause:  { label:'En pause',     dot:'gray',   badge:'r',  colClass:'red' },
+  form:   { label:'Formation',    dot:'blue',   badge:'o',  colClass:'orange' },
+}
 
-function statusLabel(s) { return (STATUS_META[s] || STATUS_META.dispo).label; }
-function statusBadge(s) { return (STATUS_META[s] || STATUS_META.dispo).badge; }
+function statusLabel(s) { return (STATUS_META[s]||STATUS_META.dispo).label }
+function statusBadge(s) { return (STATUS_META[s]||STATUS_META.dispo).badge }
+function statusColClass(s) { return (STATUS_META[s]||STATUS_META.dispo).colClass }
+
+/* ── Unit card builder ── */
+function buildUnitCard(u, st) {
+  const num      = String(allUsers.indexOf(u)+1).padStart(2,'0')
+  const isMe     = u.id === myId
+  const colClass = statusColClass(st.status)
+  const badge    = statusBadge(st.status)
+  const lbl      = statusLabel(st.status)
+  const withNames = (st.with||[]).map(wid => allUsers.find(x=>x.id===wid)?.username).filter(Boolean).join(', ')
+  const cardClass = colClass ? `unit-card ${colClass}${isMe?' me':''}` : `unit-card${isMe?' me':''}`
+
+  return `<div class="${cardClass}">
+    <div class="uc-top">
+      <div class="uc-cs">TK-${num}</div>
+      <div class="uc-time">${elapsed(u.id)||'—'}</div>
+    </div>
+    <div class="uc-name">${u.username}${isMe?' <span style="font-size:.6rem;color:#cc0000;">(moi)</span>':''}</div>
+    <div class="uc-role">${u.role||'—'}</div>
+    ${withNames?`<div class="uc-with">👥 ${withNames}</div>`:''}
+    ${st.action?`<div class="uc-action">${st.action}</div>`:''}
+    <span class="uc-badge ${badge}">${lbl}</span>
+  </div>`
+}
 
 /* ── Filter ── */
 function setFilter(f, el) {
-  currentFilter = f;
-  document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  renderRoster();
+  currentFilter = f
+  document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'))
+  el.classList.add('active')
+  renderRoster()
 }
 
 /* ── Roster ── */
 function renderRoster() {
-  const q = document.getElementById('search-input').value.toLowerCase().trim();
-  const list = document.getElementById('roster-list');
+  const q    = document.getElementById('search-input').value.toLowerCase().trim()
+  const list = document.getElementById('roster-list')
 
-  let meOnline = null;
-  let others = [];
-  let offline = [];
+  let meOnline = null
+  let others   = []
+  let offline  = []
 
-  allUsers.forEach((u, i) => {
-    const num = String(i + 1).padStart(2, '0');
-    if (q && !u.username.toLowerCase().includes(q) && !num.includes(q)) return;
-    if (currentFilter === 'online' && !onlineSet.has(u.id)) return;
-    if (currentFilter === 'offline' && onlineSet.has(u.id)) return;
+  allUsers.forEach((u,i) => {
+    const num = String(i+1).padStart(2,'0')
+    if (q && !u.username.toLowerCase().includes(q) && !num.includes(q)) return
+    if (currentFilter === 'online'  && !onlineSet.has(u.id)) return
+    if (currentFilter === 'offline' &&  onlineSet.has(u.id)) return
 
     if (onlineSet.has(u.id)) {
-      if (u.id === myId) meOnline = { ...u, num };
-      else others.push({ ...u, num });
+      if (u.id === myId) meOnline = { ...u, num }
+      else others.push({ ...u, num })
     } else {
-      offline.push({ ...u, num });
+      offline.push({ ...u, num })
     }
-  });
+  })
 
-  let html = '';
+  let html = ''
 
-  // Moi en premier si en service
   if (meOnline && currentFilter !== 'offline') {
-    const st = playerStatus[meOnline.id] || {};
+    const st = playerStatus[meOnline.id] || {}
     html += `<div class="section-lbl online-lbl">● Vous êtes en service</div>
       <div class="player-row me-online">
         <div class="player-name-line">
@@ -864,150 +875,141 @@ function renderRoster() {
           <span class="player-name">${meOnline.username} <span style="font-size:.6rem;color:#cc0000;">(moi)</span></span>
           <span class="me-dot"></span>
         </div>
-        <div class="player-grade">${meOnline.role || '—'}</div>
-        ${st.status ? `<div class="player-statut-info">${statusLabel(st.status)}${st.action ? ' · ' + st.action : ''}</div>` : ''}
-        <div class="player-timer">${elapsed(meOnline.id) ? '⏱ ' + elapsed(meOnline.id) : ''}</div>
-      </div>`;
+        <div class="player-grade">${meOnline.role||'—'}</div>
+        ${st.status ? `<div class="player-statut-info">${statusLabel(st.status)}${st.action?' · '+st.action:''}</div>` : ''}
+        <div class="player-timer">${elapsed(meOnline.id)?'⏱ '+elapsed(meOnline.id):''}</div>
+      </div>`
   }
 
   if (others.length && currentFilter !== 'offline') {
-    html += `<div class="section-lbl online-lbl">● En service (${others.length})</div>`;
+    html += `<div class="section-lbl online-lbl">● En service (${others.length})</div>`
     others.forEach(u => {
-      const st = playerStatus[u.id] || {};
+      const st = playerStatus[u.id] || {}
       html += `<div class="player-row online">
         <div class="player-name-line">
           <span class="player-num">${u.num}</span>
           <span class="player-name">${u.username}</span>
           <span class="online-dot"></span>
         </div>
-        <div class="player-grade">${u.role || '—'}</div>
-        ${st.status ? `<div class="player-statut-info">${statusLabel(st.status)}${st.action ? ' · ' + st.action : ''}</div>` : ''}
-        <div class="player-timer">${elapsed(u.id) ? '⏱ ' + elapsed(u.id) : ''}</div>
-      </div>`;
-    });
+        <div class="player-grade">${u.role||'—'}</div>
+        ${st.status ? `<div class="player-statut-info">${statusLabel(st.status)}${st.action?' · '+st.action:''}</div>` : ''}
+        <div class="player-timer">${elapsed(u.id)?'⏱ '+elapsed(u.id):''}</div>
+      </div>`
+    })
   }
 
   if (offline.length && currentFilter !== 'online') {
-    html += `<div class="section-lbl">Hors service (${offline.length})</div>`;
+    html += `<div class="section-lbl">Hors service (${offline.length})</div>`
     offline.forEach(u => {
       html += `<div class="player-row">
         <div class="player-name-line">
           <span class="player-num">${u.num}</span>
           <span class="player-name">${u.username}</span>
         </div>
-        <div class="player-grade">${u.role || '—'}</div>
-      </div>`;
-    });
+        <div class="player-grade">${u.role||'—'}</div>
+      </div>`
+    })
   }
 
-  if (!html) html = '<div class="empty-col" style="margin:20px 0;">Aucun résultat</div>';
-  list.innerHTML = html;
-  document.getElementById('effectif-count').textContent = allUsers.length;
+  if (!html) html = '<div class="empty-col" style="margin:20px 0;">Aucun résultat</div>'
+  list.innerHTML = html
+  document.getElementById('effectif-count').textContent = allUsers.length
 }
 
 /* ── Columns ── */
 function renderColumns() {
-  const dispoUsers = allUsers.filter(u => onlineSet.has(u.id) && (playerStatus[u.id]?.status || 'dispo') === 'dispo');
-  const intervUsers = allUsers.filter(u => onlineSet.has(u.id) && playerStatus[u.id]?.status === 'interv');
+  // Filtre par statut
+  const byStatus = (s) => allUsers.filter(u => onlineSet.has(u.id) && (playerStatus[u.id]?.status || 'dispo') === s)
 
-  // Disponible
-  const colDispo = document.getElementById('col-dispo');
-  document.getElementById('col-dispo-count').textContent = dispoUsers.length;
-  if (!dispoUsers.length) {
-    colDispo.innerHTML = '<div class="empty-col">Aucune unité disponible</div>';
+  const dispoUsers  = byStatus('dispo')
+  const intervUsers = byStatus('interv')
+  const occupeUsers = byStatus('occupe')
+  const opUsers     = byStatus('op')
+  const pauseUsers  = byStatus('pause')
+  const formUsers   = byStatus('form')
+
+  // ── Colonne Disponible ──
+  const colDispo = document.getElementById('col-dispo')
+  document.getElementById('col-dispo-count').textContent = dispoUsers.length
+  colDispo.innerHTML = dispoUsers.length
+    ? dispoUsers.map(u => buildUnitCard(u, playerStatus[u.id] || { status:'dispo', with:[], action:'' })).join('')
+    : '<div class="empty-col">Aucune unité disponible</div>'
+
+  // ── Colonne Intervention ──
+  const colInterv = document.getElementById('col-interv')
+  // Regroupe intervention + occupé + op + pause + formation dans la colonne interv
+  const allEngaged = [...intervUsers, ...occupeUsers, ...opUsers, ...pauseUsers, ...formUsers]
+  document.getElementById('col-interv-count').textContent = allEngaged.length
+  if (!allEngaged.length) {
+    colInterv.innerHTML = '<div class="empty-col">Aucune patrouille engagée</div>'
   } else {
-    colDispo.innerHTML = dispoUsers.map(u => {
-      const st = playerStatus[u.id] || {};
-      const num = String(allUsers.indexOf(u) + 1).padStart(2, '0');
-      const isMe = u.id === myId;
-      const withNames = (st.with || []).map(wid => allUsers.find(x => x.id === wid)?.username).filter(Boolean).join(', ');
-      return `<div class="unit-card${isMe ? ' me' : ''}">
-        <div class="uc-top">
-          <div class="uc-cs">TK-${num}</div>
-          <div class="uc-time">${elapsed(u.id) || '—'}</div>
-        </div>
-        <div class="uc-name">${u.username}${isMe ? ' <span style="font-size:.6rem;color:#cc0000;">(moi)</span>' : ''}</div>
-        <div class="uc-role">${u.role || '—'}</div>
-        ${withNames ? `<div class="uc-with">👥 ${withNames}</div>` : ''}
-        ${st.action ? `<div class="uc-action">${st.action}</div>` : ''}
-        <span class="uc-badge g">Disponible</span>
-      </div>`;
-    }).join('');
+    // Sous-sections par type
+    let html = ''
+    const groups = [
+      { users: intervUsers,  label: '🔶 En intervention' },
+      { users: occupeUsers,  label: '🔴 Occupé' },
+      { users: opUsers,      label: '🔵 Opération' },
+      { users: pauseUsers,   label: '⚫ En pause' },
+      { users: formUsers,    label: '🔵 Formation' },
+    ]
+    groups.forEach(g => {
+      if (!g.users.length) return
+      html += `<div class="section-lbl" style="padding:6px 2px 4px;font-size:.6rem;">${g.label} (${g.users.length})</div>`
+      html += g.users.map(u => buildUnitCard(u, playerStatus[u.id])).join('')
+    })
+    colInterv.innerHTML = html
   }
 
-  // Intervention
-  const colInterv = document.getElementById('col-interv');
-  document.getElementById('col-interv-count').textContent = intervUsers.length;
-  if (!intervUsers.length) {
-    colInterv.innerHTML = '<div class="empty-col">Aucune patrouille engagée</div>';
-  } else {
-    colInterv.innerHTML = intervUsers.map(u => {
-      const st = playerStatus[u.id] || {};
-      const num = String(allUsers.indexOf(u) + 1).padStart(2, '0');
-      const isMe = u.id === myId;
-      const withNames = (st.with || []).map(wid => allUsers.find(x => x.id === wid)?.username).filter(Boolean).join(', ');
-      return `<div class="unit-card orange${isMe ? ' me' : ''}">
-        <div class="uc-top">
-          <div class="uc-cs">TK-${num}</div>
-          <div class="uc-time">${elapsed(u.id) || '—'}</div>
-        </div>
-        <div class="uc-name">${u.username}${isMe ? ' <span style="font-size:.6rem;color:#cc0000;">(moi)</span>' : ''}</div>
-        <div class="uc-role">${u.role || '—'}</div>
-        ${withNames ? `<div class="uc-with">👥 ${withNames}</div>` : ''}
-        ${st.action ? `<div class="uc-action">${st.action}</div>` : ''}
-        <span class="uc-badge o">Intervention</span>
-      </div>`;
-    }).join('');
-  }
-
-  updateCounts();
+  updateCounts()
 }
 
 function updateCounts() {
-  const dispo = allUsers.filter(u => onlineSet.has(u.id) && (playerStatus[u.id]?.status || 'dispo') === 'dispo').length;
-  const interv = allUsers.filter(u => onlineSet.has(u.id) && playerStatus[u.id]?.status === 'interv').length;
-  document.getElementById('count-dispo').textContent = dispo;
-  document.getElementById('count-interv').textContent = interv;
+  const dispo   = allUsers.filter(u => onlineSet.has(u.id) && (playerStatus[u.id]?.status||'dispo')==='dispo').length
+  const engaged = allUsers.filter(u => onlineSet.has(u.id) && playerStatus[u.id]?.status && playerStatus[u.id].status !== 'dispo').length
+  document.getElementById('count-dispo').textContent  = dispo
+  document.getElementById('count-interv').textContent = engaged
 }
 
-/* ── Load Users ── */
+/* ── Load ── */
 async function loadUsers() {
-  try {
-    const res = await fetch('/api/admin/users', { headers: { 'Authorization': 'Bearer ' + token } });
-    allUsers = await res.json();
-  } catch (e) {
-    allUsers = [];
-  }
+  // 1. Charger l'état persisté en premier
+  await loadState()
 
+  // 2. Essayer l'API pour les utilisateurs
   try {
-    const res2 = await fetch('/api/dispatch/status', { headers: { 'Authorization': 'Bearer ' + token } });
+    const res = await fetch('/api/admin/users', { headers:{'Authorization':'Bearer '+token} })
+    if (res.ok) allUsers = await res.json()
+  } catch(e) { allUsers = [] }
+
+  // 3. Essayer l'API dispatch (si dispo, elle prend le dessus sur le storage)
+  try {
+    const res2 = await fetch('/api/dispatch/status', { headers:{'Authorization':'Bearer '+token} })
     if (res2.ok) {
-      const s = await res2.json();
-      onlineSet = new Set(s.online_ids || []);
-      (s.start_times || []).forEach(({ id, ts }) => { startTimes[id] = ts; });
-      playerStatus = s.player_status || {};
+      const s = await res2.json()
+      onlineSet    = new Set(s.online_ids||[])
+      ;(s.start_times||[]).forEach(({id,ts}) => { startTimes[id]=ts })
+      playerStatus = s.player_status || {}
+      // Resauvegarder l'état venant de l'API
+      await saveState()
     }
-  } catch (e) {
-    // Si l'API échoue, on utilise l'état local
-    if (loadOnlineState()) {
-      onlineSet.add(myId);
-      startTimes[myId] = Date.now();
-      playerStatus[myId] = loadCustomStatus();
-    }
+  } catch(e) { /* pas d'API, on garde le state local */ }
+
+  // 4. Sync bouton si le joueur est en service
+  if (onlineSet.has(myId)) {
+    document.getElementById('btn-statut').classList.add('visible')
+  } else {
+    document.getElementById('btn-statut').classList.remove('visible')
   }
 
-  renderServiceBtn();
-  renderRoster();
-  renderColumns();
-  updateCounts();
+  renderServiceBtn()
+  renderRoster()
+  renderColumns()
+  updateCounts()
 }
 
-// Charger l'état initial au démarrage
-loadInitialState();
-
-// Charger les utilisateurs et mettre à jour régulièrement
-setInterval(loadUsers, 30000);
-loadUsers();
+// Refresh toutes les 30s
+setInterval(loadUsers, 30000)
+loadUsers()
 
 </script>
 </body>

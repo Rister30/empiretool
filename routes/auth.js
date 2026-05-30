@@ -9,7 +9,32 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 })
 
-// Créer la table si elle n'existe pas
+// Liste canonique des rôles de l'Empire
+const ROLES_VALIDES = [
+  'admin',
+  'mdcn',
+  'darth',
+  'seigneur',
+  'maitrecaste',
+  'mrava',
+  'msorcier',
+  'mmarau',
+  'masassin',
+  'grandespe',
+  'grava',
+  'gsorcier',
+  'gmarau',
+  'gasassin',
+  'rava',
+  'marau',
+  'assassin',
+  'sorcier',
+  'guerrier',
+  'inqui',
+  'acolyte',
+  'membre'
+]
+
 pool.query(`
   CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -26,10 +51,14 @@ router.post('/register', async (req, res) => {
     if (exists.rows.length > 0) {
       return res.status(400).json({ message: 'Cet identifiant existe déjà' })
     }
+
+    // Valider le rôle — si non reconnu ou absent, on met 'membre'
+    const roleAssigne = ROLES_VALIDES.includes(role) ? role : 'membre'
+
     const hash = await bcrypt.hash(password, 10)
     await pool.query(
       'INSERT INTO users (username, password, role) VALUES ($1, $2, $3)',
-      [username, hash, role || 'membre']
+      [username, hash, roleAssigne]
     )
     res.json({ message: 'Compte créé !' })
   } catch (err) {
@@ -50,7 +79,7 @@ router.post('/login', async (req, res) => {
     if (!valid) return res.status(401).json({ message: 'Identifiants incorrects' })
 
     const token = jwt.sign(
-      { username: user.username, role: user.role },
+      { id: user.id, username: user.username, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     )
