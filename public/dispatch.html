@@ -739,7 +739,7 @@ function openStatutModal() {
       <div class="with-opt${selectedWith.has(u.id)?' selected':''}" onclick="toggleWith(${JSON.stringify(u.id)},this)">
         <div class="with-check">${selectedWith.has(u.id)?'✓':''}</div>
         <span class="with-name">${u.username}</span>
-        <span class="with-role">${u.role||''}</span>
+        <span class="with-role">${roleLabel(u.role)}</span>
       </div>
     `).join('')
   }
@@ -806,6 +806,33 @@ const STATUS_META = {
   form:   { label:'Formation',    dot:'blue',   badge:'o',  colClass:'orange' },
 }
 
+
+const ROLE_LABELS = {
+  admin:       'Admin',
+  mdcn:        'Membre du Conseil Noir',
+  darth:       'Darth',
+  seigneur:    'Seigneur',
+  maitrecaste: 'Maître de Caste',
+  mrava:       'Maître des Ravageurs',
+  msorcier:    'Maître des Sorciers',
+  mmarau:      'Maître des Maraudeurs',
+  masassin:    'Maître des Assassins',
+  grandespe:   'Grande Spécialisation',
+  grava:       'Grand Ravageur',
+  gsorcier:    'Grand Sorcier',
+  gmarau:      'Grand Maraudeur',
+  gasassin:    'Grand Assassin',
+  rava:        'Ravageur',
+  marau:       'Maraudeur',
+  assassin:    'Assassin',
+  sorcier:     'Sorcier',
+  guerrier:    'Guerrier',
+  inqui:       'Inquisiteur',
+  acolyte:     'Acolyte',
+  membre:      'Membre',
+}
+function roleLabel(r) { return ROLE_LABELS[r] || r || '—' }
+
 function statusLabel(s) { return (STATUS_META[s]||STATUS_META.dispo).label }
 function statusBadge(s) { return (STATUS_META[s]||STATUS_META.dispo).badge }
 function statusColClass(s) { return (STATUS_META[s]||STATUS_META.dispo).colClass }
@@ -826,7 +853,7 @@ function buildUnitCard(u, st) {
       <div class="uc-time">${elapsed(u.id)||'—'}</div>
     </div>
     <div class="uc-name">${u.username}${isMe?' <span style="font-size:.6rem;color:#cc0000;">(moi)</span>':''}</div>
-    <div class="uc-role">${u.role||'—'}</div>
+    <div class="uc-role">${roleLabel(u.role)}</div>
     ${withNames?`<div class="uc-with">👥 ${withNames}</div>`:''}
     ${st.action?`<div class="uc-action">${st.action}</div>`:''}
     <span class="uc-badge ${badge}">${lbl}</span>
@@ -891,7 +918,7 @@ function renderRoster() {
           <span class="player-name">${u.username}</span>
           <span class="online-dot"></span>
         </div>
-        <div class="player-grade">${u.role||'—'}</div>
+        <div class="player-grade">${roleLabel(u.role)}</div>
         ${st.status ? `<div class="player-statut-info">${statusLabel(st.status)}${st.action?' · '+st.action:''}</div>` : ''}
         <div class="player-timer">${elapsed(u.id)?'⏱ '+elapsed(u.id):''}</div>
       </div>`
@@ -906,7 +933,7 @@ function renderRoster() {
           <span class="player-num">${u.num}</span>
           <span class="player-name">${u.username}</span>
         </div>
-        <div class="player-grade">${u.role||'—'}</div>
+        <div class="player-grade">${roleLabel(u.role)}</div>
       </div>`
     })
   }
@@ -981,15 +1008,33 @@ async function loadUsers() {
     if (res.ok) allUsers = await res.json()
   } catch(e) { allUsers = [] }
 
-  // 3. Essayer l'API dispatch (si dispo, elle prend le dessus sur le storage)
+  // 3. Essayer l'API dispatch — on fusionne avec le state local
+  // Le state local a la priorité pour soi-même (évite le reset au refresh)
+  const myLocalOnline = onlineSet.has(myId)
+  const myLocalStatus = playerStatus[myId] ? { ...playerStatus[myId] } : null
+  const myLocalStart  = startTimes[myId]
+
   try {
     const res2 = await fetch('/api/dispatch/status', { headers:{'Authorization':'Bearer '+token} })
     if (res2.ok) {
       const s = await res2.json()
-      onlineSet    = new Set(s.online_ids||[])
-      ;(s.start_times||[]).forEach(({id,ts}) => { startTimes[id]=ts })
-      playerStatus = s.player_status || {}
-      // Resauvegarder l'état venant de l'API
+      const apiOnline = new Set(s.online_ids||[])
+      const apiTimes  = {}
+      ;(s.start_times||[]).forEach(({id,ts}) => { apiTimes[id]=ts })
+      const apiStatus = s.player_status || {}
+
+      // Fusion : on prend l'API pour les autres, le local pour soi
+      onlineSet    = apiOnline
+      startTimes   = { ...apiTimes }
+      playerStatus = { ...apiStatus }
+
+      // Restaurer son propre état depuis le local si présent
+      if (myLocalOnline) {
+        onlineSet.add(myId)
+        if (myLocalStart)  startTimes[myId]   = myLocalStart
+        if (myLocalStatus) playerStatus[myId] = myLocalStatus
+      }
+
       await saveState()
     }
   } catch(e) { /* pas d'API, on garde le state local */ }
