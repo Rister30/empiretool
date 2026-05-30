@@ -634,32 +634,9 @@ let currentFilter = 'all'
 let selectedStatus = 'dispo'
 let selectedWith   = new Set()
 
-/* ── Storage persistence ── */
-const STORAGE_KEY = 'dispatch_state'
-
-async function saveState() {
-  try {
-    const data = {
-      onlineIds:    [...onlineSet],
-      startTimes:   startTimes,
-      playerStatus: playerStatus,
-      savedAt:      Date.now()
-    }
-    await window.storage.set(STORAGE_KEY, JSON.stringify(data), true)
-  } catch(e) { /* storage indisponible, dégradé */ }
-}
-
-async function loadState() {
-  try {
-    const result = await window.storage.get(STORAGE_KEY, true)
-    if (result && result.value) {
-      const data = JSON.parse(result.value)
-      onlineSet    = new Set(data.onlineIds || [])
-      startTimes   = data.startTimes   || {}
-      playerStatus = data.playerStatus || {}
-    }
-  } catch(e) { /* pas de state sauvegardé */ }
-}
+/* ── Storage persistence (no-op, DB is source of truth) ── */
+async function saveState() {}
+async function loadState() {}
 
 /* ── Toast ── */
 function toast(msg, color) {
@@ -699,7 +676,6 @@ async function toggleService() {
     setTimeout(openStatutModal, 400)
   }
 
-  await saveState()
   renderServiceBtn()
   renderRoster()
   renderColumns()
@@ -779,7 +755,6 @@ async function confirmStatut() {
     with:   [...selectedWith],
     action: document.getElementById('action-input').value.trim()
   }
-  await saveState()
   closeStatutModal()
   renderRoster()
   renderColumns()
@@ -999,47 +974,25 @@ function updateCounts() {
 
 /* ── Load ── */
 async function loadUsers() {
-  // 1. Charger l'état persisté en premier
-  await loadState()
-
-  // 2. Essayer l'API pour les utilisateurs
+  // Utilisateurs
   try {
     const res = await fetch('/api/admin/users', { headers:{'Authorization':'Bearer '+token} })
     if (res.ok) allUsers = await res.json()
   } catch(e) { allUsers = [] }
 
-  // 3. Essayer l'API dispatch — on fusionne avec le state local
-  // Le state local a la priorité pour soi-même (évite le reset au refresh)
-  const myLocalOnline = onlineSet.has(myId)
-  const myLocalStatus = playerStatus[myId] ? { ...playerStatus[myId] } : null
-  const myLocalStart  = startTimes[myId]
-
+  // État dispatch — la DB est la source de vérité
   try {
     const res2 = await fetch('/api/dispatch/status', { headers:{'Authorization':'Bearer '+token} })
     if (res2.ok) {
       const s = await res2.json()
-      const apiOnline = new Set(s.online_ids||[])
-      const apiTimes  = {}
-      ;(s.start_times||[]).forEach(({id,ts}) => { apiTimes[id]=ts })
-      const apiStatus = s.player_status || {}
-
-      // Fusion : on prend l'API pour les autres, le local pour soi
-      onlineSet    = apiOnline
-      startTimes   = { ...apiTimes }
-      playerStatus = { ...apiStatus }
-
-      // Restaurer son propre état depuis le local si présent
-      if (myLocalOnline) {
-        onlineSet.add(myId)
-        if (myLocalStart)  startTimes[myId]   = myLocalStart
-        if (myLocalStatus) playerStatus[myId] = myLocalStatus
-      }
-
-      await saveState()
+      onlineSet    = new Set(s.online_ids||[])
+      startTimes   = {}
+      ;(s.start_times||[]).forEach(({id,ts}) => { startTimes[id]=ts })
+      playerStatus = s.player_status || {}
     }
-  } catch(e) { /* pas d'API, on garde le state local */ }
+  } catch(e) {}
 
-  // 4. Sync bouton si le joueur est en service
+  // Sync bouton
   if (onlineSet.has(myId)) {
     document.getElementById('btn-statut').classList.add('visible')
   } else {
