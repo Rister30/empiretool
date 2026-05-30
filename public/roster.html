@@ -434,7 +434,14 @@
       const res = await fetch('/api/admin/users', {
         headers: { 'Authorization': 'Bearer ' + token }
       })
-      allUsers = await res.json()
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('token')
+        window.location.href = '/login.html'
+        return
+      }
+      const data = await res.json()
+      allUsers = Array.isArray(data) ? data : []
+      if (!Array.isArray(data)) showMsg('❌ Erreur : ' + (data.message || 'réponse inattendue'), true)
       const tbody = document.getElementById('userList')
       tbody.innerHTML = ''
 
