@@ -437,14 +437,42 @@
       tbody.innerHTML = ''
 
       allUsers.forEach(user => {
+        // ✅ tous les rôles de l'Empire dans le select
+        const roles = [
+          ['admin',       'Admin'],
+          ['mdcn',        'Membre du Conseil Noir'],
+          ['darth',       'Darth'],
+          ['seigneur',    'Seigneur'],
+          ['maitrecaste', 'Maître de Caste'],
+          ['mrava',       'Maître des Ravageurs'],
+          ['msorcier',    'Maître des Sorciers'],
+          ['mmarau',      'Maître des Maraudeurs'],
+          ['masassin',    'Maître des Assassins'],
+          ['grandespe',   'Grande Spécialisation'],
+          ['grava',       'Grand Ravageur'],
+          ['gsorcier',    'Grand Sorcier'],
+          ['gmarau',      'Grand Maraudeur'],
+          ['gasassin',    'Grand Assassin'],
+          ['rava',        'Ravageur'],
+          ['marau',       'Maraudeur'],
+          ['assassin',    'Assassin'],
+          ['sorcier',     'Sorcier'],
+          ['guerrier',    'Guerrier'],
+          ['inqui',       'Inquisiteur'],
+          ['acolyte',     'Acolyte'],
+          ['membre',      'Membre'],
+        ]
+
+        const options = roles.map(([val, label]) =>
+          `<option value="${val}" ${user.role === val ? 'selected' : ''}>${label}</option>`
+        ).join('')
+
         tbody.innerHTML += `
           <tr data-username="${user.username}">
             <td class="username-cell">${user.username}</td>
             <td>
               <select class="role-select" id="role-${user.id}">
-                <option value="membre" ${user.role === 'membre' ? 'selected' : ''}>Membre</option>
-                <option value="officier" ${user.role === 'officier' ? 'selected' : ''}>Officier</option>
-                <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                ${options}
               </select>
             </td>
             <td>

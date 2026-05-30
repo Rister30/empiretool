@@ -5,11 +5,13 @@ const app = express()
 app.use(express.json())
 app.use(express.static('public'))
 
-const authRoutes = require('./routes/auth')
-app.use('/api/auth', authRoutes)
+const authRoutes     = require('./routes/auth')
+const adminRoutes    = require('./routes/admin')
+const dispatchRoutes = require('./routes/dispatch')   // ✅ ajout
 
-const adminRoutes = require('./routes/admin')
-app.use('/api/admin', adminRoutes)
+app.use('/api/auth',     authRoutes)
+app.use('/api/admin',    adminRoutes)
+app.use('/api/dispatch', dispatchRoutes)              // ✅ ajout
 
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
